@@ -1,0 +1,12 @@
+# Dependencies
+/vendor/
+
+# Environment
+.env
+.env.*
+
+!.env.example
+
+
+logs/
+storage/logs/
