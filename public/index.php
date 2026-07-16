@@ -2,9 +2,8 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use App\Helpers\Response;
+use App\Middleware\LoggerMiddleware;
 use Dotenv\Dotenv;
-use Symfony\Component\RateLimiter\RateLimit;
 Dotenv::createImmutable(__DIR__ . '/../')->load();
 
 use App\Core\ErrorHandler;
@@ -23,56 +22,83 @@ use App\Controllers\ProjectsController;
 use App\Controllers\TasksController;
 use App\Middleware\AuthMiddleware;
 use App\Routes\Router;
+use App\Middleware\CORSMiddleware;
+use App\Core\Logger;
+use Monolog\Handler\StreamHandler;
+use Monolog\Logger as MonologLogger;
 
+use App\Core\Container;
+// Config
+$container = new Container();
 
 $request = new Request();
 $connection = (new Database())->getConnection();
+$Monolog = new MonologLogger("App");
+$Monolog->pushHandler(new StreamHandler(__DIR__ . "/../logs/app.log", MonologLogger::DEBUG));
+$logger = new Logger($Monolog);
+
+$globalErorHandler = new ErrorHandler($logger);
+
+// Primitives
+$container->set('connection', $connection);
+$container->set('logger', $logger);
 
 // Repositories
-$userRepository = new UserRepository($connection);
-$projectRepository = new ProjectRepository($connection);
-$tasksRepository = new TasksRepository($connection);
+$container->set('userRepository', fn(Container $c) => new UserRepository($c->get('connection')));
+$container->set('projectRepository', fn(Container $c) => new ProjectRepository($c->get('connection')));
+$container->set('tasksRepository', fn(Container $c) => new TasksRepository($c->get('connection')));
 
 // Services
-$authService = new AuthService($userRepository, $projectRepository, $connection);
-$userService = new UserService($userRepository);
-$projectService = new ProjectService($projectRepository);
-$tasksService = new TasksService($tasksRepository, $projectRepository);
+$container->set('authService', fn(Container $c) => new AuthService(
+    $c->get('userRepository'),
+    $c->get('projectRepository'),
+    $c->get('connection'),
+));
+$container->set('userService', fn(Container $c) => new UserService($c->get('userRepository')));
+$container->set('projectService', fn(Container $c) => new ProjectService($c->get('projectRepository')));
+$container->set('tasksService', fn(Container $c) => new TasksService(
+    $c->get('tasksRepository'),
+    $c->get('projectRepository'),
+));
 
 // Controllers
-$authController = new AuthController($authService);
-$userController = new UserController($userService);
-$projectsController = new ProjectsController($projectService);
-$tasksController = new TasksController($tasksService);
+$container->set('authController', fn(Container $c) => new AuthController($c->get('authService')));
+$container->set('userController', fn(Container $c) => new UserController($c->get('userService')));
+$container->set('projectsController', fn(Container $c) => new ProjectsController($c->get('projectService')));
+$container->set('tasksController', fn(Container $c) => new TasksController($c->get('tasksService')));
 
 // Middleware
-$authMiddleware = new AuthMiddleware($userRepository);
+$container->set('corsMiddleware', fn() => new CorsMiddleware());
+$container->set('loggerMiddleware', fn(Container $c) => new LoggerMiddleware($c->get('logger')));
+$container->set('authMiddleware', fn(Container $c) => new AuthMiddleware($c->get('userRepository')));
 
 // Routes
 $router = new Router();
 
-$router->post('/auth/register', [$authController, 'register']);
-$router->post('/auth/login', [$authController, 'login']);
+$router->use($container->resolve('corsMiddleware', 'handle'));
+$router->use($container->resolve('loggerMiddleware', 'logRequestTime'));
 
-$router->get('/user/me', [$userController, 'me'], [[$authMiddleware, 'handle']]);
-$router->put('/user/me', [$userController, 'updateProfile'], [[$authMiddleware, 'handle']]);
+$router->post('/auth/register', $container->resolve('authController', 'register'));
+$router->post('/auth/login', $container->resolve('authController', 'login'));
 
-// Projects
-$router->get('/projects', [$projectsController, 'getUserProjects'], [[$authMiddleware, 'handle']]);
-$router->post('/projects', [$projectsController, 'createProject'], [[$authMiddleware, 'handle']]);
-$router->get('/projects/{id}', [$projectsController, 'getProject'], [[$authMiddleware, 'handle']]);
-$router->patch('/projects/{id}', [$projectsController, 'updateProject'], [[$authMiddleware, 'handle']]);
-$router->delete('/projects/{id}', [$projectsController, 'deleteProject'], [[$authMiddleware, 'handle']]);
+$authGuard = $container->resolve('authMiddleware', 'handle');
 
-// Tasks scoped to project
-$router->get('/projects/{id}/tasks', [$tasksController, 'getProjectTasks'], [[$authMiddleware, 'handle']]);
-$router->post('/projects/{id}/tasks', [$tasksController, 'createTask'], [[$authMiddleware, 'handle']]);
+$router->get('/user/me', $container->resolve('userController', 'me'), [$authGuard]);
+$router->put('/user/me', $container->resolve('userController', 'updateProfile'), [$authGuard]);
 
-// Tasks direct (update / move / delete)
-$router->patch('/tasks/{id}', [$tasksController, 'updateTask'], [[$authMiddleware, 'handle']]);
-$router->delete('/tasks/{id}', [$tasksController, 'deleteTask'], [[$authMiddleware, 'handle']]);
+$router->get('/projects', $container->resolve('projectsController', 'getUserProjects'), [$authGuard]);
+$router->post('/projects', $container->resolve('projectsController', 'createProject'), [$authGuard]);
+$router->get('/projects/{id}', $container->resolve('projectsController', 'getProject'), [$authGuard]);
+$router->patch('/projects/{id}', $container->resolve('projectsController', 'updateProject'), [$authGuard]);
+$router->delete('/projects/{id}', $container->resolve('projectsController', 'deleteProject'), [$authGuard]);
 
-$router->buildDispatcher();
-ErrorHandler::handle(function () use ($router, $request) {
+$router->get('/projects/{id}/tasks', $container->resolve('tasksController', 'getProjectTasks'), [$authGuard]);
+$router->post('/projects/{id}/tasks', $container->resolve('tasksController', 'createTask'), [$authGuard]);
+
+$router->patch('/tasks/{id}', $container->resolve('tasksController', 'updateTask'), [$authGuard]);
+$router->delete('/tasks/{id}', $container->resolve('tasksController', 'deleteTask'), [$authGuard]);
+
+$globalErorHandler->handle(function () use ($router, $request) {
+    $router->buildDispatcher();
     $router->handle($request);
 });
