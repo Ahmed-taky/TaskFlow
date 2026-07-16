@@ -54,7 +54,11 @@ $container->set('authService', fn(Container $c) => new AuthService(
     $c->get('projectRepository'),
     $c->get('connection'),
 ));
-$container->set('userService', fn(Container $c) => new UserService($c->get('userRepository')));
+$container->set('userService', fn(Container $c) => new UserService(
+    $c->get('userRepository'),
+    $c->get('projectRepository'),
+    $c->get('tasksRepository'),
+));
 $container->set('projectService', fn(Container $c) => new ProjectService($c->get('projectRepository')));
 $container->set('tasksService', fn(Container $c) => new TasksService(
     $c->get('tasksRepository'),
@@ -85,6 +89,7 @@ $authGuard = $container->resolve('authMiddleware', 'handle');
 
 $router->get('/user/me', $container->resolve('userController', 'me'), [$authGuard]);
 $router->put('/user/me', $container->resolve('userController', 'updateProfile'), [$authGuard]);
+$router->get('/user/dashboard', $container->resolve('userController', 'dashboard'), [$authGuard]);
 
 $router->get('/projects', $container->resolve('projectsController', 'getUserProjects'), [$authGuard]);
 $router->post('/projects', $container->resolve('projectsController', 'createProject'), [$authGuard]);
@@ -94,6 +99,7 @@ $router->delete('/projects/{id}', $container->resolve('projectsController', 'del
 
 $router->get('/projects/{id}/tasks', $container->resolve('tasksController', 'getProjectTasks'), [$authGuard]);
 $router->post('/projects/{id}/tasks', $container->resolve('tasksController', 'createTask'), [$authGuard]);
+$router->get('/projects/{id}/calendar', $container->resolve('tasksController', 'calendar'), [$authGuard]);
 
 $router->patch('/tasks/{id}', $container->resolve('tasksController', 'updateTask'), [$authGuard]);
 $router->delete('/tasks/{id}', $container->resolve('tasksController', 'deleteTask'), [$authGuard]);

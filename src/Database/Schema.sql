@@ -21,13 +21,16 @@ CREATE TABLE users (
 
 -- ---- projects --------------------------------------------------
 CREATE TABLE projects (
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(100)  NOT NULL,
+    id          SERIAL PRIMARY KEY,
+    name        VARCHAR(100)  NOT NULL,
     type        project_type NOT NULL DEFAULT 'NORMAL',
-    due_date   DATE,
-    user_id    INTEGER       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMP     DEFAULT NOW(),
-    updated_at TIMESTAMP     DEFAULT NOW()
+    goal        TEXT    ,
+    reflection  TEXT    ,
+    due_date    DATE,
+    user_id     INTEGER       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    start_date  DATE,
+    created_at  TIMESTAMP     DEFAULT NOW(),
+    updated_at  TIMESTAMP     DEFAULT NOW()
 );
 
 -- One SYSTEM project (Inbox) per user
@@ -44,7 +47,8 @@ CREATE TABLE tasks (
     status      task_status   NOT NULL DEFAULT 'PENDING',
     project_id  INTEGER       NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     created_at  TIMESTAMP     DEFAULT NOW(),
-    updated_at  TIMESTAMP     DEFAULT NOW()
+    updated_at  TIMESTAMP     DEFAULT NOW(),
+    completed_at TIMESTAMP
 );
 
 -- ---- updated_at trigger ----------------------------------------

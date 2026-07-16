@@ -1,10 +1,17 @@
 <?php
 namespace App\Services;
+
 use App\Repositories\UserRepository;
+use App\Repositories\ProjectRepository;
+use App\Repositories\TasksRepository;
+
 class UserService
 {
-    public function __construct(private UserRepository $userRepository)
-    {
+    public function __construct(
+        private UserRepository $userRepository,
+        private ProjectRepository $projectRepository,
+        private TasksRepository $tasksRepository,
+    ) {
     }
 
     public function getUserById(int $id)
@@ -28,5 +35,23 @@ class UserService
         unset($res['password']);
         return $res;
     }
+
+    public function getDashboard(int $userId): array
+    {
+        $user = $this->userRepository->getById($userId);
+        $projects = $this->projectRepository->getDashboardStats($userId);
+        $tasks = $this->tasksRepository->getDashboardStats($userId);
+        $todayCompleted = $this->tasksRepository->getTodayCompletedCount($userId);
+
+        return [
+            'user' => [
+                'name' => $user['name'],
+            ],
+            'projects' => $projects,
+            'tasks' => $tasks,
+            'today' => [
+                'completed_tasks' => $todayCompleted,
+            ],
+        ];
+    }
 }
-?>

@@ -63,8 +63,8 @@ class TasksRepository
                       AND t.id = :task_id
                       AND u.id = :user_id
                     RETURNING t.*;";
-        $data['task_id']  = $taskId;
-        $data['user_id']  = $userId;
+        $data['task_id'] = $taskId;
+        $data['user_id'] = $userId;
         $stmt = $this->connection->prepare($query);
         $stmt->execute($data);
         return $stmt->fetch() ?: null;
@@ -82,5 +82,54 @@ class TasksRepository
         );
         $stmt->execute(['task_id' => $taskId, 'user_id' => $userId]);
         return $stmt->rowCount();
+    }
+
+    public function getCompletedCountsByDateRange(int $projectId, string $from, string $to): array
+    {
+        $stmt = $this->connection->prepare(
+            "SELECT completed_at::date AS day, COUNT(*)::int AS count
+             FROM tasks
+             WHERE project_id = :project_id
+               AND completed_at IS NOT NULL
+               AND completed_at::date >= :from
+               AND completed_at::date <= :to
+             GROUP BY completed_at::date
+             ORDER BY day;"
+        );
+        $stmt->execute([
+            'project_id' => $projectId,
+            'from' => $from,
+            'to' => $to,
+        ]);
+        return $stmt->fetchAll();
+    }
+    public function getDashboardStats(int $userId): array
+    {
+        $stmt = $this->connection->prepare(
+            "SELECT
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE t.status = 'PENDING')::int AS pending,
+                COUNT(*) FILTER (WHERE t.status = 'IN_PROGRESS')::int AS in_progress,
+                COUNT(*) FILTER (WHERE t.status = 'COMPLETED')::int AS completed
+             FROM tasks t
+             JOIN projects p ON p.id = t.project_id
+             WHERE p.user_id = :user_id;"
+        );
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetch();
+    }
+
+    public function getTodayCompletedCount(int $userId): int
+    {
+        $stmt = $this->connection->prepare(
+            "SELECT COUNT(*)::int
+             FROM tasks t
+             JOIN projects p ON p.id = t.project_id
+             WHERE p.user_id = :user_id
+               AND t.status = 'COMPLETED'
+               AND t.completed_at::date = CURRENT_DATE;"
+        );
+        $stmt->execute(['user_id' => $userId]);
+        return (int) $stmt->fetchColumn();
     }
 }

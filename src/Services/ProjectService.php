@@ -12,13 +12,26 @@ class ProjectService
     public function createProject(int $userId, array $data)
     {
         $this->validateName($data);
+
+        if (!array_key_exists('start_date', $data) || empty($data['start_date'])) {
+            throw new \Exception("Start date is required", 400);
+        }
+        if (!array_key_exists('due_date', $data) || empty($data['due_date'])) {
+            throw new \Exception("Due date is required", 400);
+        }
+
+        $startDate = $this->validateStartDate($data);
         $dueDate = $this->validateDueDate($data);
+        $this->validateDateOrder($startDate, $dueDate);
 
         return $this->projectRepository->create([
-            'name'      => trim($data['name']),
-            'type'       => 'NORMAL',
-            'due_date'   => $dueDate,
-            'user_id'   => $userId,
+            'name' => trim($data['name']),
+            'type' => 'NORMAL',
+            'goal' => $data['goal'] ?? null,
+            'reflection' => $data['reflection'] ?? null,
+            'due_date' => $dueDate,
+            'start_date' => $startDate,
+            'user_id' => $userId,
         ]);
     }
 
@@ -42,10 +55,13 @@ class ProjectService
         if (!$project) {
             throw new \Exception("Project not found or you are not the owner", 404);
         }
-
+        if ($project['type'] === "SYSTEM") {
+            throw new \Exception("Project Immutable", 403);
+        }
+        $allowed = ['name', 'goal', 'reflection', 'due_date', 'start_date'];
         $filterData = [];
         foreach ($data as $key => $value) {
-            if (in_array($key, ['name', 'due_date'])) {
+            if (in_array($key, $allowed)) {
                 $filterData[$key] = $value;
             }
         }
@@ -60,6 +76,14 @@ class ProjectService
         if (array_key_exists('due_date', $filterData)) {
             $filterData['due_date'] = $this->validateDueDate($filterData);
         }
+        if (array_key_exists('start_date', $filterData)) {
+            $filterData['start_date'] = $this->validateStartDate($filterData);
+        }
+
+        $comparedStart = $filterData['start_date'] ?? $project['start_date'];
+        $comparedDue = $filterData['due_date'] ?? $project['due_date'];
+
+        $this->validateDateOrder($comparedStart, $comparedDue);
 
         $updated = $this->projectRepository->update($id, $filterData);
         if (!$updated) {
@@ -108,5 +132,27 @@ class ProjectService
             throw new \Exception("Due date must not be in the past", 400);
         }
         return $parsed;
+    }
+
+    private function validateStartDate(array $data): ?string
+    {
+        if (!array_key_exists('start_date', $data) || $data['start_date'] === null || $data['start_date'] === '') {
+            return null;
+        }
+        $parsed = date('Y-m-d', strtotime($data['start_date']));
+        if (!$parsed || $parsed === '1970-01-01') {
+            throw new \Exception("Invalid start date format", 400);
+        }
+        return $parsed;
+    }
+
+    private function validateDateOrder(?string $startDate, ?string $dueDate): void
+    {
+        if ($startDate === null || $dueDate === null) {
+            return;
+        }
+        if ($dueDate < $startDate) {
+            throw new \Exception("Due date must not be before start date", 400);
+        }
     }
 }

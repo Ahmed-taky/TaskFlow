@@ -64,6 +64,16 @@ class TasksService
             $this->assertProjectOwnedByUser((int) $filterData['project_id'], $userId);
         }
 
+        if (isset($filterData['status'])) {
+            $oldStatus = $existing['status'];
+            $newStatus = $filterData['status'];
+            if ($newStatus === 'COMPLETED' && $oldStatus !== 'COMPLETED') {
+                $filterData['completed_at'] = date('Y-m-d H:i:s');
+            } elseif ($newStatus !== 'COMPLETED' && $oldStatus === 'COMPLETED') {
+                $filterData['completed_at'] = null;
+            }
+        }
+
         $updated = $this->tasksRepository->update($filterData, $taskId, $userId);
         if (!$updated) {
             throw new \Exception("Task not found or you are not the owner", 404);
@@ -136,5 +146,24 @@ class TasksService
             throw new \Exception('Status must be PENDING, IN_PROGRESS, or COMPLETED', 400);
         }
         return $status;
+    }
+
+    public function getCalendar(int $userId, int $projectId, ?int $month, ?int $year, ?string $from, ?string $to): array
+    {
+        $this->assertProjectOwnedByUser($projectId, $userId);
+
+        if ($from !== null && $to !== null) {
+            $rangeFrom = $from;
+            $rangeTo = $to;
+        } else {
+            $m = $month ?? (int) date('n');
+            $y = $year ?? (int) date('Y');
+            $date = new \DateTime("$y-$m-01");
+            $rangeFrom = $date->format('Y-m-d');
+            $rangeTo = $date->format('Y-m-t');
+
+        }
+
+        return $this->tasksRepository->getCompletedCountsByDateRange($projectId, $rangeFrom, $rangeTo);
     }
 }

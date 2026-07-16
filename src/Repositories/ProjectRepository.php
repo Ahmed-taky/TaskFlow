@@ -13,9 +13,9 @@ class ProjectRepository
     {
         $stmt = $this->connection->prepare(
             "INSERT INTO projects
-                (name, type, due_date, user_id)
+                (name, type, goal, reflection, due_date, start_date, user_id)
             VALUES
-                (:name, :type, :due_date, :user_id)
+                (:name, :type, :goal, :reflection, :due_date, :start_date, :user_id)
             RETURNING *;"
         );
         $stmt->execute($data);
@@ -93,5 +93,18 @@ class ProjectRepository
         $stmt->execute(['id' => $id]);
         $result = $stmt->fetchColumn();
         return $result === 'SYSTEM';
+    }
+    public function getDashboardStats(int $userId): array
+    {
+        $stmt = $this->connection->prepare(
+            "SELECT
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE due_date >= CURRENT_DATE)::int AS active,
+                COUNT(*) FILTER (WHERE due_date < CURRENT_DATE)::int AS overdue
+             FROM projects
+             WHERE type = 'NORMAL' AND user_id = :user_id;"
+        );
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetch();
     }
 }

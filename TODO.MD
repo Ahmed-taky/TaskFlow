@@ -9,16 +9,19 @@
 - [x] Projects CRUD
 - [x] Tasks CRUD
 - [x] Logging (Monolog)
+- [x] CORS Middleware
+- [x] Dependency Injection Container
+- [x] Pipeline / Global Middleware
+- [x] Calendar (completed tasks grouped by day)
+- [x] Dashboard (projects/tasks/today stats)
+- [x] Project goal / reflection / start_date fields
+- [x] completed_at on tasks (auto-set on complete, clear on reopen)
 
 ---
 
 ## 🚧 In Progress
 
-- [ ] CORS Middleware
-  - [ ] Implement middleware
-  - [ ] Inject Response object
-  - [ ] Register globally in Router
-  - [ ] Handle OPTIONS (Preflight)
+*(nothing currently in progress)*
 
 ---
 

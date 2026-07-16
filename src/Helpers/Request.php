@@ -30,10 +30,10 @@ class Request
         if (!empty($body) && !is_array($body)) {
             throw new \Exception('Invalid body shape');
         }
-        $this->body = $body;
-        $this->query = $_GET;
-        $this->cookies = $_COOKIE;
-        $this->files = $_FILES;
+        $this->body = $body ?? [];
+        $this->query = $_GET ?? [];
+        $this->cookies = $_COOKIE ?? [];
+        $this->files = $_FILES ?? [];
 
     }
 

@@ -1,8 +1,10 @@
 <?php
 namespace App\Controllers;
+
 use App\Services\UserService;
 use App\Helpers\Response;
 use App\Helpers\Request;
+
 class UserController
 {
     public function __construct(private UserService $userService)
@@ -21,6 +23,7 @@ class UserController
             "user" => $user
         ]);
     }
+
     public function updateProfile(Request $request)
     {
         $user = $request->getAttribute('user') ?? null;
@@ -37,5 +40,11 @@ class UserController
         $res = $this->userService->updateProfile($user['id'], $request->body);
         Response::json(true, "Profile Updated successfully", 200, $res);
     }
+
+    public function dashboard(Request $request): void
+    {
+        $user = $request->getAttribute('user');
+        $data = $this->userService->getDashboard($user['id']);
+        Response::json(true, 'Dashboard retrieved successfully', 200, $data);
+    }
 }
-?>
